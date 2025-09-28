@@ -69,7 +69,9 @@ export function Appbar() {
             </button>
           ) : (
             <button
-              onClick={() => signIn()}
+              onClick={() => {
+                signIn("google");
+              }}
               className="bg-blue-500 text-white px-6 py-3 rounded-lg font-medium text-lg shadow-sm hover:shadow-md transform hover:scale-105 transition-all duration-300 hover:bg-blue-600 flex items-center space-x-2 cursor-pointer"
             >
               <Zap className="w-4 h-4" />
