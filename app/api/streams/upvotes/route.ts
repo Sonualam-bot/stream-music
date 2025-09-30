@@ -6,7 +6,6 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { getToken } from "next-auth/jwt";
 
 const UpvoteSchema = z.object({
-  userId: z.string(),
   streamId: z.string(),
 });
 
@@ -52,22 +51,12 @@ export async function POST(req: NextRequest) {
 
     // Use the userId we found above
 
-    // Check if user is trying to upvote their own stream
-    const stream = await prismaClient.stream.findUnique({
-      where: { id: data.streamId },
-      select: { userId: true },
-    });
-
-    if (stream && stream.userId === userId) {
-      return NextResponse.json(
-        { message: "You cannot upvote your own stream" },
-        { status: 400 }
-      );
-    }
+    // Allow creators to upvote their own streams
+    // No need to check if it's their own stream
 
     // Use transaction to prevent race conditions
     await prismaClient.$transaction(async (tx) => {
-      // Check if upvote already exists
+      // Check if user has already voted (upvote or downvote)
       const existingUpvote = await tx.upvote.findUnique({
         where: {
           userId_streamId: {
@@ -78,16 +67,24 @@ export async function POST(req: NextRequest) {
       });
 
       if (existingUpvote) {
-        throw new Error("User has already upvoted this stream");
+        // User already upvoted, remove the upvote (toggle off)
+        await tx.upvote.delete({
+          where: {
+            userId_streamId: {
+              userId: userId,
+              streamId: data.streamId,
+            },
+          },
+        });
+      } else {
+        // Create new upvote
+        await tx.upvote.create({
+          data: {
+            userId: userId,
+            streamId: data.streamId,
+          },
+        });
       }
-
-      // Create upvote
-      return await tx.upvote.create({
-        data: {
-          userId: userId,
-          streamId: data.streamId,
-        },
-      });
     });
 
     return NextResponse.json(
@@ -96,18 +93,6 @@ export async function POST(req: NextRequest) {
     );
   } catch (error) {
     console.error("Error creating upvote:", error);
-
-    // Handle specific error cases
-    if (
-      error instanceof Error &&
-      error.message === "User has already upvoted this stream"
-    ) {
-      return NextResponse.json(
-        { message: "User has already upvoted this stream" },
-        { status: 400 }
-      );
-    }
-
     return NextResponse.json(
       { message: "Error while upvoting stream" },
       { status: 500 }

@@ -18,10 +18,15 @@ export const authOptions: NextAuthOptions = {
             where: {
               email: user.email,
             },
-            update: {},
+            update: {
+              name: user.name ?? undefined,
+              image: user.image ?? undefined,
+            },
             create: {
               email: user.email,
               provider: "GOOGLE",
+              name: user.name ?? null,
+              image: user.image ?? null,
             },
           });
         } catch (error) {
