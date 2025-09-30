@@ -85,20 +85,16 @@ export async function GET(req: NextRequest) {
   try {
     const creatorId = req.nextUrl.searchParams.get("creatorId");
 
-    if (!creatorId) {
-      return NextResponse.json(
-        { message: "Creator ID is required" },
-        { status: 400 }
-      );
-    }
+    const where = creatorId ? { userId: creatorId } : undefined;
 
     const streams = await prismaClient.stream.findMany({
-      where: {
-        userId: creatorId,
-      },
+      where,
       include: {
         upvotes: true,
         user: true,
+      },
+      orderBy: {
+        createdAt: "desc",
       },
     });
 

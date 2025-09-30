@@ -6,7 +6,6 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { getToken } from "next-auth/jwt";
 
 const DownvoteSchema = z.object({
-  userId: z.string(),
   streamId: z.string(),
 });
 
@@ -35,19 +34,10 @@ export async function POST(req: NextRequest) {
 
     // Use the userId we found above
 
-    // Check if user has already upvoted (remove upvote if exists)
-    const existingUpvote = await prismaClient.upvote.findUnique({
-      where: {
-        userId_streamId: {
-          userId: userId,
-          streamId: data.streamId,
-        },
-      },
-    });
-
-    if (existingUpvote) {
-      // Remove the upvote
-      await prismaClient.upvote.delete({
+    // Use transaction to prevent race conditions
+    await prismaClient.$transaction(async (tx) => {
+      // Check if user has already upvoted
+      const existingUpvote = await tx.upvote.findUnique({
         where: {
           userId_streamId: {
             userId: userId,
@@ -55,7 +45,20 @@ export async function POST(req: NextRequest) {
           },
         },
       });
-    }
+
+      if (existingUpvote) {
+        // User already upvoted, remove the upvote (this is the "downvote" action)
+        await tx.upvote.delete({
+          where: {
+            userId_streamId: {
+              userId: userId,
+              streamId: data.streamId,
+            },
+          },
+        });
+      }
+      // If no upvote exists, do nothing (downvote = remove upvote if it exists)
+    });
 
     return NextResponse.json(
       { message: "Stream downvoted successfully" },
